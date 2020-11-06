@@ -1,0 +1,148 @@
+
+HOW I DEPLOYED MY APPLICATION ON THE VM OF okeanos.
+
+
+First, I stopped apache, I don't need it. 
+I could add it as a proxy for my tomcat webapp, 
+but that's for another time maybe.
+
+sudo systemctl stop apache2
+
+
+Then I downloaded the tomcat9 version and extracted it into /opt/tomcat/TOMCAT_VERSION
+
+cd ~/Downloads
+wget https://ftp.cc.uoc.gr/mirrors/apache/tomcat/tomcat-9/v9.0.39/bin/apache-tomcat-9.0.39.tar.gz
+tar zxvf apache-tomcat-9.0.39.tar.gz
+sudo mkdir /opt/tomcat
+sudo mv apache-tomcat-9.0.39 /opt/tomcat/
+rm -r apache-tomcat-9.0.39
+cd /opt/tomcat
+
+
+I then created a symbolic link to the tomcat version, 
+this might save a lot of time in the future if I want to add a new version of tomcat.
+Also, I made every bash script inside tomcat/latest/bin folder executable. 
+
+sudo ln -s apache-tomcat-9.0.39 latest
+cd latest
+chmod +x bin/*.sh
+
+Since java was not installed I installed it with
+
+sudo apt-get install default-jdk
+
+
+Inside the bin folder of tomcat there is a script named "catalina.sh"
+This is used to start the tomcat server.
+To start it, while inside the bin folder, we type:
+
+./catalina.sh start
+
+
+To stop it the command is similar:
+
+./catalina.sh stop
+
+
+Sometimes the above command did not succeed, with the most common error
+being that catalina could not establish connection to port 8005, which is the
+default port for shutting down the server. In this case I used:
+
+ps aux | grep "catalina"   Followed by
+kill PID_NUMBER
+
+
+I WANTED TO USE MYSQL, so the rest might not be helpful if you're going
+with another db..
+So next I needed the connector driver. I downloaded it from
+https://dev.mysql.com/downloads/connector/j/
+I used the platform independent file AND on top of that I didn't add it 
+to my classpath, so I had to compile my files in a more complicated way.
+I downloaded the file, extracted it and placed the .jar file inside 
+/opt/tomcat/latest/lib
+
+
+I installed mariadb server with
+sudo apt-get install mariadb-server
+
+this also downloaded and installed everything else needed. (mariadb-client, etc)
+
+I then created the database with something like the following:
+
+sudo mysql
+CREATE DATABASE some_database;
+CREATE TABLE some_database.some_table (some_column)
+CREATE USER 'some_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE on some_database.some_table TO 'some_user'@'localhost';
+
+
+database ready. 
+After that I checked my Servlets for a correct connection to this db.
+
+
+Compiling the servlets was next.
+The command to compile one file was:
+
+javac -cp .:servlet-api.jar:mysql-connector-java-8.0.22.jar  -d  PATH_FOR_THE_CLASS_FOLDER   JAVA_FILE_PATH
+
+
+I wrote a bash script to be able to compile my files faster.
+You can find it below.
+To use it, someone must set up the PROJECT_NAME and MUST be on the PROJECT
+FOLDER to execute it.
+Finally, to run it, I had to give it execution rights with
+chmod +x compiler.sh
+
+
+
+#####################################################################
+#!/bin/bash
+
+PROJECT_NAME=my_eshop
+classes_dir=/opt/tomcat/latest/webapps/my_eshop/WEB-INF/classes
+
+cd lib
+
+# create a temp file with all .java files to be compiled
+ls -R ../src  | grep  ".java" |  grep -v "mysql-connector-java-8.0.22.jar" > files_to_compile.tmp
+
+# compile the .java files
+while read line; do javac -cp .:mysql-connector-java-8.0.22.jar:servlet-api.jar: -d $classes_dir ../src/$line; done < files_to_compile.tmp
+
+# delete the .tmp file we used.
+rm files_to_compile.tmp
+
+# echo a nice msg for our users
+echo ""
+echo "Thank you for using this program, we wish you will NOT use this program again. Happy Coding!"
+echo ""
+#######################################################################
+
+
+
+#######################################################################
+Below you can see the files structure of my project
+
+├── add-product.html
+├── compiler.sh
+├── css
+│   └── addProduct.css
+├── HOW_TO_DEPLOY_THIS_APP_ON_A_SERVER
+├── lib
+│   ├── mysql-connector-java-8.0.22.jar
+│   └── servlet-api.jar
+├── src
+│   ├── AddProduct.java
+│   ├── AllProducts.java
+│   └── Welcome.java
+└── WEB-INF
+    ├── classes
+    │   ├── AddProduct.class
+    │   ├── AllProducts.class
+    │   ├── HelloWorld.class
+    │   ├── Test.class
+    │   └── Welcome.class
+    └── web.xml
+#######################################################################
+
